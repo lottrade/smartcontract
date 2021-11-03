@@ -25,7 +25,7 @@ contract TokenSaleLocked is TokenSaleBase {
             "TokenSale::locked: PreSale already finished"
         );
         require(
-            amoutLott >= _minPurchase,
+            amoutLott > 0,
             "TokenSale::locked: Amount less than minimum purchase"
         );
         uint256 tokenSaleLottBalance = LOTT.balanceOf(address(this));
