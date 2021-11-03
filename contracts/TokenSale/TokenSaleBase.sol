@@ -74,20 +74,16 @@ contract TokenSaleBase is Ownable {
         }
     }
 
-    function getUnlockedTableTime(uint8 _percent)
-        external
-        view
-        returns (uint8)
-    {
+    function getUnlockedTableTime(uint8 _month) external view returns (uint8) {
         uint8 index;
-        for (uint8 i = 0; i < _unlockedPercents.length; i++) {
-            if (_percent == _unlockedPercents[i]) index = i;
+        for (uint8 i = 0; i < _unlockedMonths.length; i++) {
+            if (_month == _unlockedMonths[i]) index = i;
         }
         require(
             index >= 0,
-            "TokenSale::getUnlockedTableTime: Unlocked date by this percent not found"
+            "TokenSale::getUnlockedTableTime: Unlocked percent by this month not found"
         );
-        return _unlockedMonths[index];
+        return _unlockedPercents[index];
     }
 
     function setMaxCap(uint256 _capital) external onlyOwner returns (bool) {
