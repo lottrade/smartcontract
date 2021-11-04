@@ -1,5 +1,5 @@
 const LOTT = artifacts.require("LOTTBEP20Token");
-const PreSale = artifacts.require("PreSaleUnlocked");
+const TokenSale = artifacts.require("TokenSaleUnlocked");
 const Web3 = require("web3");
 const web3 = new Web3();
 
@@ -9,5 +9,5 @@ module.exports = async function (deployer, network, accounts) {
     if (network == 'live') {
         addressBUSD = "0xe9e7cea3dedca5984780bafc599bd69add087d56";
     }
-    await deployer.deploy(PreSale, addressBUSD, LOTT.address);
+    await deployer.deploy(TokenSale, addressBUSD, LOTT.address);
 }
