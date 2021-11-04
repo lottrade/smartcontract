@@ -5,16 +5,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./TokenSaleLocked.sol";
 
 contract TokenSaleUnlocked is TokenSaleLocked {
-    struct UnlockedTable {
-        uint8 percent;
-        uint8 month;
-    }
-
     modifier checkUnlocked() {
         UnlockedTable
             memory firstMonthUnlockedTable = _firstMonthUnlockedTable();
 
-        uint256 firstTimeLocked = _lockedBalancesFirstTime[msg.sender];
+        uint256 firstTimeLocked = _lockedBalancesFirstTime[tx.origin];
+        require(firstTimeLocked > 0 && block.timestamp > firstTimeLocked, "TokenSale::unlocked: Unlocked is not active");
 
         require(
             block.timestamp >
@@ -30,7 +26,7 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         view
         returns (UnlockedTable memory)
     {
-        uint8 checkMinMonth = 0;
+        uint8 checkMinMonth = _unlockedMonths[0];
         uint8 checkMinMonthIndex = 0;
         for (uint8 i = 0; i < _unlockedMonths.length; i++) {
             if (
@@ -45,29 +41,30 @@ contract TokenSaleUnlocked is TokenSaleLocked {
             UnlockedTable(_unlockedPercents[checkMinMonthIndex], checkMinMonth);
     }
 
-    constructor(address _busd, address _lott) {
+    constructor(address _busd, address _lott, uint256 _maxCap, uint256 _lottPrice, uint8[] memory _percents, uint8[] memory _months) {
         LOTT = IERC20(_lott);
         BUSD = IERC20(_busd);
+        _setMaxCap(_maxCap);
+        _setLottPrice(_lottPrice);
+        _setUnlockedTable(_percents, _months);
     }
 
     function _unlocked(uint256 _amount) internal {
-        LOTT.transfer(msg.sender, _amount);
-        lockedBalances[msg.sender] -= _amount;
-        emit UnLocked(msg.sender, _amount);
+        LOTT.transfer(tx.origin, _amount);
+        lockedBalances[tx.origin] -= _amount;
+        emit UnLocked(tx.origin, _amount);
     }
 
     function unlocked(uint256 _amount) external checkUnlocked {
-        uint32 percent = _percentUnlocked();
-        uint256 maxPosibilityUnlocked = (percent *
-            _lockedBalances[msg.sender]) / 100;
+        uint256 maxPosUnlocked = _calculateMaxPosibilityUnlocked();
         require(
-            maxPosibilityUnlocked >= _amount,
+            maxPosUnlocked >= _amount,
             "TokenSale::unlocked: Amount more than max posibility unlocked"
         );
         require(
-            (_lockedBalances[msg.sender] - lockedBalances[msg.sender]) +
+            (_lockedBalances[tx.origin] - lockedBalances[tx.origin]) +
                 _amount <=
-                maxPosibilityUnlocked,
+                maxPosUnlocked,
             "TokenSale::unlocked: Amount more than posibility unlocked"
         );
         uint256 actualBalanceLOTT = LOTT.balanceOf(address(this));
@@ -77,14 +74,18 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         );
         _unlocked(_amount);
     }
+    
+    function _calculateMaxPosibilityUnlocked() internal view returns(uint256) {
+        uint32 percent = _percentUnlocked();
+        
+        return  (percent * _lockedBalances[tx.origin]) / 100;
+    }
 
     function _percentUnlocked() private view returns (uint8) {
         uint8 percent;
         uint8 maxPercent = 100;
         uint256 timeNow = block.timestamp;
-        uint256 firstTimeLocked = _lockedBalancesFirstTime[msg.sender];
-        UnlockedTable
-            memory firstItemUnlockedTable = _firstMonthUnlockedTable();
+        uint256 firstTimeLocked = _lockedBalancesFirstTime[tx.origin];
 
         uint8 calcPercent = 0;
         bool checkLastMonth = false;
@@ -96,7 +97,7 @@ contract TokenSaleUnlocked is TokenSaleLocked {
             if (
                 unLockedPercent > 0 &&
                 timeNow >
-                firstTimeLocked + (firstItemUnlockedTable.month * _daysInMonth)
+                firstTimeLocked + (unLockedMonth * _daysInMonth)
             ) {
                 calcPercent += unLockedPercent;
                 if (i == _unlockedMonths.length - 1) {
@@ -108,9 +109,9 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         }
 
         if (checkLastMonth && calcPercent < maxPercent) {
-            uint8 calcMissingMonth = maxPercent - calcPercent / lastPercent;
+            uint8 calcMissingMonth = (maxPercent - calcPercent) / lastPercent;
             for (uint8 i = 1; i <= calcMissingMonth; i++) {
-                uint8 nextMonth = calcMissingMonth + i;
+                uint8 nextMonth = lastMonth + i;
                 if (timeNow > firstTimeLocked + (nextMonth * _daysInMonth)) {
                     calcPercent += lastPercent;
                 }
@@ -120,5 +121,21 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         percent = calcPercent;
 
         return percent;
+    }
+    
+    function percentUnlocked() external view checkUnlocked returns(uint8) {
+        return _percentUnlocked();
+    }
+    
+    function maxPosibilityUnlocked() external view checkUnlocked returns(uint256) {
+        return _calculateMaxPosibilityUnlocked();
+    }
+    
+    function posibilityUnlocked() external view checkUnlocked returns(uint256) {
+        if (lockedBalances[tx.origin] > 0) {
+            return _calculateMaxPosibilityUnlocked() - (_lockedBalances[tx.origin] - lockedBalances[tx.origin]);
+        }
+        
+        return _calculateMaxPosibilityUnlocked();
     }
 }

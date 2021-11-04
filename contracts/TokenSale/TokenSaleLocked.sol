@@ -16,13 +16,14 @@ contract TokenSaleLocked is TokenSaleBase {
 
     modifier validateLocked(uint256 _amountBUSD) {
         uint256 amoutLott = _amountBUSD.div(_lottPrice).mul(10**18);
+        require(_startDate > 0 && block.timestamp > _startDate, "TokenSale::locked: Token Sale has not started yet");
         require(
             block.timestamp > _startDate && block.timestamp < _finishDate,
-            "TokenSale::locked: PreSale already finished"
+            "TokenSale::locked: TokenSale already finished"
         );
         require(
             _maxCap > 0 && _maxCap >= amoutLott,
-            "TokenSale::locked: PreSale already finished"
+            "TokenSale::locked: TokenSale already finished"
         );
         require(
             amoutLott > 0,
@@ -74,13 +75,13 @@ contract TokenSaleLocked is TokenSaleBase {
     function locked(uint256 _amountBUSD) external validateLocked(_amountBUSD) {
         uint256 amoutLOTT = _amountBUSD.div(_lottPrice).mul(10**18);
         uint256 amountBUSD = amoutLOTT.mul(_lottPrice).div(10**18);
-        BUSD.transferFrom(msg.sender, address(this), amountBUSD);
-        _locked(msg.sender, amoutLOTT);
+        BUSD.transferFrom(tx.origin, address(this), amountBUSD);
+        _locked(tx.origin, amoutLOTT);
     }
 
     function lockedForOwner(address _to, uint256 _amountBUSD)
         external
-        onlyOwner
+        onlyOwnerOrigin
         validateLocked(_amountBUSD)
     {
         require(
@@ -98,20 +99,19 @@ contract TokenSaleLocked is TokenSaleBase {
     function getLockedWallets()
         external
         view
-        onlyOwner
-        returns (LockedWallets[] memory)
+        onlyOwnerOrigin
+        returns (address[] memory, uint256[] memory)
     {
-        LockedWallets[] memory result = new LockedWallets[](
-            _lockedWallets.length
-        );
+        address[] memory userWallets = new address[](_lockedWallets.length);
+        uint256[] memory userBalances = new uint256[](_lockedWallets.length);
+        
         for (uint256 i = 0; i < _lockedWallets.length; i++) {
             address item = _lockedWallets[i];
             uint256 balance = lockedBalances[item];
-            if (lockedBalances[item] > 0) {
-                result[i] = LockedWallets(item, balance);
-            }
+            userWallets[i] = item;
+            userBalances[i] = balance;
         }
 
-        return result;
+        return (userWallets, userBalances);
     }
 }

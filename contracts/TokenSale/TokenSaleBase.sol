@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract TokenSaleBase is Ownable {
     uint256 internal _maxCap;
     uint32 internal _startDate;
-    uint32 internal _finishDate;
+    uint32 internal _finishDate = 2551086801;
     uint256 internal _lottPrice;
     uint256 internal _minPurchase;
 
@@ -20,13 +20,23 @@ contract TokenSaleBase is Ownable {
     address[] internal _lockedWallets;
     uint8[] internal _unlockedPercents;
     uint8[] internal _unlockedMonths;
-    uint256 internal constant _daysInMonth = 30 days;
+    uint256 internal constant _daysInMonth = 2 minutes;
 
     event Locked(address indexed lockedAddress, uint256 amount);
     event UnLocked(address indexed unlockedAddress, uint256 amount);
+    
+    struct UnlockedTable {
+        uint8 percent;
+        uint8 month;
+    }
 
     modifier checkTime(uint32 _date) {
         require(block.timestamp < _date, "TokenSale:: Date.now more than date");
+        _;
+    }
+    
+    modifier onlyOwnerOrigin() {
+        require(owner() == tx.origin, "Ownable: caller is not the owner");
         _;
     }
 
@@ -52,13 +62,17 @@ contract TokenSaleBase is Ownable {
 
     function setUnlockedTable(uint8[] memory _percents, uint8[] memory _months)
         external
-        onlyOwner
+        onlyOwner returns(bool)
     {
+       return _setUnlockedTable(_percents, _months);
+    }
+    
+    function _setUnlockedTable(uint8[] memory _percents, uint8[] memory _months) internal returns(bool) {
         require(_percents.length == _months.length);
         require(_percents.length <= 100);
         _unlockedPercents = new uint8[](_percents.length);
         _unlockedMonths = new uint8[](_percents.length);
-        for (uint256 i; i < _percents.length; i++) {
+        for (uint256 i = 0; i < _percents.length; i++) {
             uint8 percent = _percents[i];
             uint8 month = _months[i];
             require(
@@ -69,12 +83,14 @@ contract TokenSaleBase is Ownable {
                 percent >= 0,
                 "TokenSale::setUnlockedTable: Percent: must be more or equel 0"
             );
-            _unlockedPercents.push(percent);
-            _unlockedMonths.push(month);
+            _unlockedPercents[i] = percent;
+            _unlockedMonths[i] = month;
         }
+        
+        return true;
     }
 
-    function getUnlockedTableTime(uint8 _month) external view returns (uint8) {
+    function getUnlockedTableTimeByMonth(uint8 _month) external view returns (uint8) {
         uint8 index;
         for (uint8 i = 0; i < _unlockedMonths.length; i++) {
             if (_month == _unlockedMonths[i]) index = i;
@@ -85,9 +101,21 @@ contract TokenSaleBase is Ownable {
         );
         return _unlockedPercents[index];
     }
+    
+    function getUnlockedTableTime()
+        external
+        view
+        returns (uint8[] memory months, uint8[] memory pecents)
+    {
+        return (_unlockedMonths, _unlockedPercents);
+    }
 
     function setMaxCap(uint256 _capital) external onlyOwner returns (bool) {
-        require(_maxCap > 0, "TokenSale::setMaxCap: MaxCap must be more 0");
+        return _setMaxCap(_capital);
+    }
+    
+    function _setMaxCap(uint256 _capital) internal returns(bool) {
+        require(_capital > 0, "TokenSale::setMaxCap: MaxCap must be more 0");
         _maxCap = _capital;
         return true;
     }
@@ -113,6 +141,10 @@ contract TokenSaleBase is Ownable {
     }
 
     function setLottPrice(uint256 _price) external onlyOwner returns (bool) {
+        return _setLottPrice(_price);
+    }
+    
+    function _setLottPrice(uint256 _price) internal returns (bool) {
         require(
             _price > 0,
             "TokenSale::setLottPrice: LottPrice must be more 0"
