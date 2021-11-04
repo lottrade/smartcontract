@@ -20,7 +20,7 @@ contract TokenSaleBase is Ownable {
     address[] internal _lockedWallets;
     uint8[] internal _unlockedPercents;
     uint8[] internal _unlockedMonths;
-    uint256 internal constant _daysInMonth = 2 minutes;
+    uint256 internal constant _daysInMonth = 30 days;
 
     event Locked(address indexed lockedAddress, uint256 amount);
     event UnLocked(address indexed unlockedAddress, uint256 amount);
