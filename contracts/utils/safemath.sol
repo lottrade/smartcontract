@@ -45,6 +45,10 @@ library SafeMath {
     assert(c >= a);
     return c;
   }
+
+  function calcul(uint a, uint b, uint precision) internal pure returns (uint) {
+     return a*(10**precision)/b;
+  }
 }
 
 /**
