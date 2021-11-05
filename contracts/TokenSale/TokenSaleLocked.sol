@@ -15,7 +15,7 @@ contract TokenSaleLocked is TokenSaleBase {
     }
 
     modifier validateLocked(uint256 _amountBUSD) {
-        uint256 amoutLott = _amountBUSD.div(_lottPrice).mul(10**18);
+        uint256 amoutLott = _amountBUSD.calcul(_lottPrice, 18);
         require(_startDate > 0 && block.timestamp > _startDate, "TokenSale::locked: Token Sale has not started yet");
         require(
             block.timestamp > _startDate && block.timestamp < _finishDate,
@@ -73,9 +73,8 @@ contract TokenSaleLocked is TokenSaleBase {
     }
 
     function locked(uint256 _amountBUSD) external validateLocked(_amountBUSD) {
-        uint256 amoutLOTT = _amountBUSD.div(_lottPrice).mul(10**18);
-        uint256 amountBUSD = amoutLOTT.mul(_lottPrice).div(10**18);
-        BUSD.transferFrom(tx.origin, address(this), amountBUSD);
+        uint256 amoutLOTT = _amountBUSD.calcul(_lottPrice, 18);
+        BUSD.transferFrom(tx.origin, address(this), _amountBUSD);
         _locked(tx.origin, amoutLOTT);
     }
 
@@ -92,8 +91,9 @@ contract TokenSaleLocked is TokenSaleBase {
             _to != address(0),
             "TokenSale::lockedForOwner: To address is zero."
         );
-        uint256 amoutLott = _amountBUSD.div(_lottPrice).mul(10**18);
-        _lockedForOwner(_to, amoutLott);
+        uint256 amoutLOTT = _amountBUSD.calcul(_lottPrice, 18);
+
+        _lockedForOwner(_to, amoutLOTT);
     }
 
     function getLockedWallets()
