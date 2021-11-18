@@ -26,7 +26,7 @@ interface ILiquidityRestrictor {
 }
 
 contract LOTTBEP20Token is ERC20, Ownable {
-    constructor(uint256 initialSupply) ERC20("WLOCT LOTT token", "LOTT") {
+    constructor(uint256 initialSupply) ERC20("LOT.TRADE LOTT token", "LOTT") {
         _mint(msg.sender, initialSupply);
     }
 
