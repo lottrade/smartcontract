@@ -2,14 +2,18 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import "./TokenSaleLocked.sol";
+import "../utils/address.sol";
 
 contract TokenSaleUnlocked is TokenSaleLocked {
-    modifier checkUnlocked() {
+    using Address for address;
+    
+    function _checkUnlocked(address _address) private view {
         UnlockedTable
             memory firstMonthUnlockedTable = _firstMonthUnlockedTable();
 
-        uint256 firstTimeLocked = _lockedBalancesFirstTime[tx.origin];
+        uint256 firstTimeLocked = _lockedBalancesFirstTime[_address];
         require(firstTimeLocked > 0 && block.timestamp > firstTimeLocked, "TokenSale::unlocked: Unlocked is not active");
 
         require(
@@ -18,7 +22,6 @@ contract TokenSaleUnlocked is TokenSaleLocked {
                     (firstMonthUnlockedTable.month * _daysInMonth),
             "TokenSale::unlocked: Unlocked is not active"
         );
-        _;
     }
 
     function _firstMonthUnlockedTable()
@@ -49,20 +52,15 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         _setUnlockedTable(_percents, _months);
     }
 
-    function _unlocked(uint256 _amount) internal {
-        LOTT.transfer(tx.origin, _amount);
-        lockedBalances[tx.origin] -= _amount;
-        emit UnLocked(tx.origin, _amount);
-    }
-
-    function unlocked(uint256 _amount) external checkUnlocked {
-        uint256 maxPosUnlocked = _calculateMaxPosibilityUnlocked();
+    function _unlocked(address _address, uint256 _amount) internal {
+        _checkUnlocked(_address);
+        uint256 maxPosUnlocked = _calculateMaxPosibilityUnlocked(_address);
         require(
             maxPosUnlocked >= _amount,
             "TokenSale::unlocked: Amount more than max posibility unlocked"
         );
         require(
-            (_lockedBalances[tx.origin] - lockedBalances[tx.origin]) +
+            (_lockedBalances[_address] - lockedBalances[_address]) +
                 _amount <=
                 maxPosUnlocked,
             "TokenSale::unlocked: Amount more than posibility unlocked"
@@ -72,20 +70,41 @@ contract TokenSaleUnlocked is TokenSaleLocked {
             actualBalanceLOTT >= _amount,
             "TokenSale::unlocked: Contract does not have enough money to unlock"
         );
-        _unlocked(_amount);
-    }
-    
-    function _calculateMaxPosibilityUnlocked() internal view returns(uint256) {
-        uint32 percent = _percentUnlocked();
-        
-        return  (percent * _lockedBalances[tx.origin]) / 100;
+        LOTT.transfer(_address, _amount);
+        lockedBalances[_address] -= _amount;
+        emit UnLocked(_address, _amount);
     }
 
-    function _percentUnlocked() private view returns (uint8) {
+    function unlocked(uint256 _amount) external {
+        _unlocked(tx.origin, _amount);
+    }
+
+    function unlockedForOwner(address _to, uint256 _amount)
+        external
+        onlyOwnerOrigin
+    {
+        require(
+            !_to.isContract(),
+            "TokenSale::lockedForOwner: To address must not be contract address"
+        );
+        require(
+            _to != address(0),
+            "TokenSale::lockedForOwner: To address is zero."
+        );
+        _unlocked(_to, _amount);
+    }
+    
+    function _calculateMaxPosibilityUnlocked(address _address) internal view returns(uint256) {
+        uint32 percent = _percentUnlocked(_address);
+        
+        return  (percent * _lockedBalances[_address]) / 100;
+    }
+
+    function _percentUnlocked(address _address) private view returns (uint8) {
         uint8 percent;
         uint8 maxPercent = 100;
         uint256 timeNow = block.timestamp;
-        uint256 firstTimeLocked = _lockedBalancesFirstTime[tx.origin];
+        uint256 firstTimeLocked = _lockedBalancesFirstTime[_address];
 
         uint8 calcPercent = 0;
         bool checkLastMonth = false;
@@ -123,19 +142,22 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         return percent;
     }
     
-    function percentUnlocked() external view checkUnlocked returns(uint8) {
-        return _percentUnlocked();
+    function percentUnlocked() external view returns(uint8) {
+        _checkUnlocked(tx.origin);
+        return _percentUnlocked(tx.origin);
     }
     
-    function maxPosibilityUnlocked() external view checkUnlocked returns(uint256) {
-        return _calculateMaxPosibilityUnlocked();
+    function maxPosibilityUnlocked() external view returns(uint256) {
+        _checkUnlocked(tx.origin);
+        return _calculateMaxPosibilityUnlocked(tx.origin);
     }
     
-    function posibilityUnlocked() external view checkUnlocked returns(uint256) {
+    function posibilityUnlocked() external view returns(uint256) {
+        _checkUnlocked(tx.origin);
         if (lockedBalances[tx.origin] > 0) {
-            return _calculateMaxPosibilityUnlocked() - (_lockedBalances[tx.origin] - lockedBalances[tx.origin]);
+            return _calculateMaxPosibilityUnlocked(tx.origin) - (_lockedBalances[tx.origin] - lockedBalances[tx.origin]);
         }
         
-        return _calculateMaxPosibilityUnlocked();
+        return _calculateMaxPosibilityUnlocked(tx.origin);
     }
 }

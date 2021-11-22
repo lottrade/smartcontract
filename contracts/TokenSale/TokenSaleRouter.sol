@@ -19,6 +19,8 @@ interface ITokenSale {
     
     function lockedForOwner(address _to, uint256 _amountBUSD) external;
     
+    function unLockedForOwner(address _to, uint256 _amount) external;
+    
     function locked(uint256 _amountBUSD) external;
     
     function unlocked(uint256 _amount) external;
@@ -56,6 +58,10 @@ contract TokenSaleRouter {
     
     function lockedForOwner(address contractAddress, address _to, uint256 _amountBUSD) external {
         ITokenSale(contractAddress).lockedForOwner(_to, _amountBUSD);
+    }
+    
+    function unLockedForOwner(address contractAddress, address _to, uint256 _amount) external {
+        ITokenSale(contractAddress).unLockedForOwner(_to, _amount);
     }
     
     function locked(address contractAddress, uint256 _amountBUSD) external {
