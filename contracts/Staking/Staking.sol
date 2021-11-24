@@ -1,5 +1,4 @@
 pragma solidity ^0.8.0;
-pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -9,28 +8,41 @@ contract StakedContract is Ownable {
     using Address for address;
 
     event Staked(address indexed user, uint256 amount, uint256 index, uint256 timestamp);
-
-    string constant defaultAuthLevel = "Default";
-    string constant proAuthLevel = "Professional";
-    string constant expertAuthLevel = "Expert";
-    string constant partnerAuthLevel = "Partner";
+    event WithdrawaStake(address indexed user, uint256 amount, uint256 reward, uint256 index, uint256 timestamp);
+    event ApproveStake(address indexed user, uint256 index, uint256 timestamp);
 
     IERC20 LOTT;
+    uint256 minimumNumberLOTTtoStaking = 0;
+    uint256 minimumNumberLOTTtoWithdrawal = 0;
 
     struct StakesData {
         uint256 index;
         bool isExist;
     }
 
+    struct StakingSummaryForAdmin{
+        address staker;
+        Stake[] stakes;
+    }
+
+    struct StakingSummary{
+        uint256 totalAmount;
+        Stake[] stakes;
+    }
+
     struct Stake {
         address user;
         uint256 amount;
         uint256 timestamp;
+        uint64 period;
+        uint256 unlockTime;
+        uint256 claimable;
+        bool approve;
+        bool paidOut;
     }
 
     struct Stakeholder {
         address user;
-        string authorizationLevel;
         Stake[] addressStakes;
     }
 
@@ -39,8 +51,41 @@ contract StakedContract is Ownable {
     mapping(address => StakesData) internal stakes;
     mapping(address => uint256) internal _balances;
 
+    modifier checkPeriod(uint64 _period) {
+        require(_period == 30 || _period == 90 || _period == 180, "Staking:: Unavailable period for staking");
+        _;
+    }
+
+    constructor(address _address) {
+        require(
+            _address.isContract(),
+            "Staking::setLottContractAddress: Address must be contract address"
+        );
+        LOTT = IERC20(_address);
+    }
+
     function balanceOf() public view returns(uint256) {
         return _balances[msg.sender];
+    }
+
+    function stake(uint256 _amount, uint64 _period) external checkPeriod(_period) {
+        require(_amount >= minimumNumberLOTTtoStaking, "Staking::stake: Unavailable number of LOTTS for stake");
+        _gettingSteakingToken(_amount);
+        _stake(_amount, _period);
+    }
+
+    function getSteakingWallets() external view onlyOwner returns (address[] memory, uint256[] memory) {
+        address[] memory userWallets = new address[](stakeholders.length);
+        uint256[] memory userBalances = new uint256[](stakeholders.length);
+
+        for (uint256 i = 0; i < stakeholders.length; i++) {
+            address item = stakeholders[i].user;
+            uint256 balance = _balances[item];
+            userWallets[i] = item;
+            userBalances[i] = balance;
+        }
+
+        return (userWallets, userBalances);
     }
 
     function setLottContractAddress(address _address) external onlyOwner {
@@ -51,10 +96,85 @@ contract StakedContract is Ownable {
         LOTT = IERC20(_address);
     }
 
+    function setMinimumNumberLOTTtoStaking(uint256 _amount) external onlyOwner {
+        require(_amount >= 0, "Staking::setMinimumNumberLOTTtoStaking: _amount cannot be lower than 0");
+        minimumNumberLOTTtoStaking = _amount;
+    }
+
+    function setMinimumNumberLOTTtoWithdrawal(uint256 _amount) external onlyOwner {
+        require(_amount >= 0, "Staking::setMinimumNumberLOTTtoWithdrawal: _amount cannot be lower than 0");
+        minimumNumberLOTTtoWithdrawal = _amount;
+    }
+
+    function calculateStakeReward() external onlyOwner {
+        for (uint256 s = 0; s < stakeholders.length; s += 1) {
+            address staker = stakeholders[s].user;
+            Stake[] memory _stakes = stakeholders[s].addressStakes;
+            for (uint256 st = 0; st < _stakes.length; st += 1) {
+                Stake memory _currentStake = _stakes[st];
+
+                if (block.timestamp < _currentStake.unlockTime) {
+                    uint256 availableReward = _calculateStakeReward(_currentStake);
+                    stakeholders[s].addressStakes[st].claimable += availableReward;  
+                } else if (_currentStake.approve) {
+                    _withdrawStake(staker, _currentStake.amount, st);
+                }
+            }
+        }
+    }
+
+    function hasStake(address _staker) public view returns(StakingSummary memory) {
+        uint256 totalStakeAmount;
+
+        StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[_staker].index].addressStakes);
+
+        for (uint256 s = 0; s < summary.stakes.length; s += 1) {
+           totalStakeAmount = totalStakeAmount + summary.stakes[s].amount;
+        }
+
+        summary.totalAmount = totalStakeAmount;
+        return summary;
+    }
+
+    function approveStake(address staker, uint256 stakeIndex) external onlyOwner {
+        _approveStake(staker, stakeIndex);
+    }
+
+    function getStakeholders() external view returns(address[] memory, Stake[][] memory) {
+        address[] memory stakers = new address[](stakeholders.length);
+        Stake[][] memory addressStakes = new Stake[][](stakeholders.length);
+        uint256 userIndex = 0;
+        uint256 stakesIndex = 0;
+
+        for (uint256 s = 0; s < stakeholders.length; s += 1) {
+            uint256 stakeholdersLength = stakeholders[s].addressStakes.length;
+
+            if (stakeholdersLength > 0) {
+                Stake[] memory appropriateStakes = new Stake[](stakeholdersLength);
+                stakesIndex = 0;
+
+                for (uint256 st = 0; st < stakeholders[s].addressStakes.length; st += 1) {
+                    Stake memory currentStake = stakeholders[s].addressStakes[st];
+                    if (currentStake.unlockTime - 1 days < block.timestamp) {
+                        appropriateStakes[stakesIndex] = currentStake;
+                        stakesIndex += 1;
+                    }
+                }
+
+                if (appropriateStakes.length > 0) {
+                    stakers[userIndex] = stakeholders[s].user;
+                    addressStakes[userIndex] = appropriateStakes;
+                }
+            }
+        }
+
+        return (stakers, addressStakes);
+    }
+
     function _gettingSteakingToken(uint256 _amount) internal {
         require(
             LOTT.allowance(msg.sender, address(this)) >= _amount,
-            "Staking::_gettingSteakingToken: Allowance too low"
+            "Allowance too low"
         );
 
         require(
@@ -63,17 +183,10 @@ contract StakedContract is Ownable {
                 address(this),
                 _amount
             ) == true,
-            "Staking::_gettingSteakingToken: Could not transfer tokens from your address to this contract"
+            'Could not transfer tokens from your address to this contract'
         );
 
         _balances[msg.sender] += _amount;
-    }
-
-    function getAuthLevel() external view returns(string memory) {
-        StakesData memory stakesData = stakes[msg.sender];
-        if (stakesData.isExist) {
-            return stakeholders[stakesData.index].authorizationLevel;
-        }
     }
 
     function _addStakeholder(address staker) internal returns (uint256){
@@ -86,7 +199,7 @@ contract StakedContract is Ownable {
         return userIndex;
     }
 
-    function _stake(uint256 _amount) internal {
+    function _stake(uint256 _amount, uint64 _period) internal {
         uint256 index;
 
         StakesData memory stakesData = stakes[msg.sender];
@@ -98,46 +211,62 @@ contract StakedContract is Ownable {
             index = stakesData.index;
         }
 
-        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, timestamp));
+        uint256 unlockTime = _calculateUnlockTime(_period);
+        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, timestamp, _period, unlockTime, 0, false, false));
 
-        _updateStakeholderAuthLevel(index, _balances[msg.sender]);
 
-        emit Staked(msg.sender, _amount, index,timestamp);
+        emit Staked(msg.sender, _amount, index, timestamp);
     }
 
-    function _updateStakeholderAuthLevel(uint256 index, uint256 balance) internal {
-        if (balance >= 1000 * (10 ** 18) && balance < 10000 * (10 ** 18)) {
-            stakeholders[index].authorizationLevel = proAuthLevel;
-        } else if (balance >= 10000 * (10 ** 18) && balance < 100000 * (10 ** 18)) {
-            stakeholders[index].authorizationLevel = expertAuthLevel;
-        } else if (balance >= 100000 * (10 ** 18)) {
-            stakeholders[index].authorizationLevel = partnerAuthLevel;
-        } else {
-            stakeholders[index].authorizationLevel = defaultAuthLevel;
+    function _calculateUnlockTime(uint64 _period) internal view returns(uint256) {
+        uint256 unlockTime;
+        if (_period == 30) unlockTime = block.timestamp + 30 days;
+        else if (_period == 90) unlockTime = block.timestamp + 90 days;
+        else if (_period == 180) unlockTime = block.timestamp + 180 days;
+
+        return unlockTime;
+    }
+
+    function _calculateRewardPrecent(uint64 _period) internal pure returns(uint256) {
+        uint256 _precent = 0;
+        if (_period == 30) _precent = 500000000000000000; // ABY / period = 15 / 40 = percentage of remuneration per day
+        else if (_period == 90) _precent = 333333333333333300;
+        else if (_period == 180) _precent = 250000000000000000;
+
+        return _precent;
+    }
+
+    function _percentageFromNumber(uint256 _number, uint256 _precent) internal pure returns(uint256) {
+        return _number * _precent / 100;
+    }
+
+    function _calculateStakeReward(Stake memory _currentStake) internal pure returns(uint256) {
+        uint256 _precent = _calculateRewardPrecent(_currentStake.period);
+        uint256 periodsInOneYear = 360 / _currentStake.period;
+        return (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear) / (10 ** 18);
+    }
+
+    function _withdrawStake(address receiver, uint256 amount, uint256 index) internal {
+        uint256 userIndex = stakes[msg.sender].index;
+        Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
+
+        uint256 reward = _calculateStakeReward(currentStake);
+
+        if (reward > minimumNumberLOTTtoWithdrawal) {
+            stakeholders[userIndex].addressStakes[index].paidOut = true;
+            _balances[receiver] -= amount;
+
+            LOTT.transfer(receiver, amount + reward);
+            emit WithdrawaStake(receiver, amount, reward, index, block.timestamp);
         }
     }
 
-    function stake(uint256 _amount) external {
-        _gettingSteakingToken(_amount);
-        _stake(_amount);
-    }
+    function _approveStake(address _staker, uint256 _stakeIndex) internal {
+        Stake memory currentStake = stakeholders[stakes[_staker].index].addressStakes[_stakeIndex];
+        require(currentStake.unlockTime < block.timestamp, "Staking::approveStake: Cannot be confirmed before unlockTime time expires");
+        require(!currentStake.approve, "Staking::approveStake: Stake already confirmed");
 
-    function getSteakingWallets()
-        external
-        view
-        onlyOwner
-        returns (address[] memory, uint256[] memory)
-    {
-        address[] memory userWallets = new address[](stakeholders.length);
-        uint256[] memory userBalances = new uint256[](stakeholders.length);
-
-        for (uint256 i = 0; i < stakeholders.length; i++) {
-            address item = stakeholders[i].user;
-            uint256 balance = _balances[item];
-            userWallets[i] = item;
-            userBalances[i] = balance;
-        }
-
-        return (userWallets, userBalances);
+        stakeholders[stakes[_staker].index].addressStakes[_stakeIndex].approve = true;
+        emit ApproveStake(_staker, _stakeIndex, block.timestamp);
     }
 }
