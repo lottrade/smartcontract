@@ -10,6 +10,7 @@ contract StakedContract is Ownable {
     event Staked(address indexed user, uint256 amount, uint256 index, uint256 timestamp);
     event WithdrawaStake(address indexed user, uint256 amount, uint256 reward, uint256 index, uint256 timestamp);
     event ApproveStake(address indexed user, uint256 index, uint256 timestamp);
+    event UnStake(address indexed user, uint256 amount, uint256 index, uint256 timestamp);
 
     IERC20 LOTT;
     uint256 minimumNumberLOTTtoStaking = 0;
@@ -259,6 +260,17 @@ contract StakedContract is Ownable {
             LOTT.transfer(receiver, amount + reward);
             emit WithdrawaStake(receiver, amount, reward, index, block.timestamp);
         }
+    }
+
+    function unStake(uint256 index) external {
+        uint256 userIndex = stakes[msg.sender].index;
+        Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
+        require(currentStake.paidOut == false && currentStake.approve == false, "Staking::Unstake: This staking has already been paid");
+
+        stakeholders[userIndex].addressStakes[index].paidOut = true;
+        _balances[msg.sender] -= currentStake.amount;
+        LOTT.transfer(msg.sender, currentStake.amount);
+        emit UnStake(msg.sender, currentStake.amount, index, block.timestamp);
     }
 
     function _approveStake(address _staker, uint256 _stakeIndex) internal {
