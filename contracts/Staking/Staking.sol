@@ -40,6 +40,7 @@ contract StakedContract is Ownable {
         uint256 claimable;
         bool approve;
         bool paidOut;
+        uint256 index;
     }
 
     struct Stakeholder {
@@ -162,9 +163,10 @@ contract StakedContract is Ownable {
                     }
                 }
 
-                if (appropriateStakes.length > 0) {
+                if (appropriateStakes.length > 0 && appropriateStakes[0].amount != 0) {
                     stakers[userIndex] = stakeholders[s].user;
                     addressStakes[userIndex] = appropriateStakes;
+                    userIndex++;
                 }
             }
         }
@@ -212,8 +214,10 @@ contract StakedContract is Ownable {
             index = stakesData.index;
         }
 
+        uint256 lastIndexNumber = stakeholders[index].addressStakes.length;
+
         uint256 unlockTime = _calculateUnlockTime(_period);
-        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, timestamp, _period, unlockTime, 0, false, false));
+        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, timestamp, _period, unlockTime, 0, false, false, lastIndexNumber));
 
 
         emit Staked(msg.sender, _amount, index, timestamp);
@@ -275,7 +279,6 @@ contract StakedContract is Ownable {
 
     function _approveStake(address _staker, uint256 _stakeIndex) internal {
         Stake memory currentStake = stakeholders[stakes[_staker].index].addressStakes[_stakeIndex];
-        require(currentStake.unlockTime < block.timestamp, "Staking::approveStake: Cannot be confirmed before unlockTime time expires");
         require(!currentStake.approve, "Staking::approveStake: Stake already confirmed");
 
         stakeholders[stakes[_staker].index].addressStakes[_stakeIndex].approve = true;
