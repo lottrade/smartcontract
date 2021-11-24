@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 import "./TokenSaleBase.sol";
-import "../utils/safemath.sol";
 import "../utils/address.sol";
 
 contract TokenSaleLocked is TokenSaleBase {
-    using SafeMath for uint256;
     using Address for address;
 
     struct LockedWallets {
@@ -15,15 +13,10 @@ contract TokenSaleLocked is TokenSaleBase {
     }
 
     modifier validateLocked(uint256 _amountBUSD) {
-        uint256 amoutLott = _amountBUSD.calcul(_lottPrice, 18);
-        require(_startDate > 0 && block.timestamp > _startDate, "TokenSale::locked: Token Sale has not started yet");
+        uint256 amoutLott = calcul(_amountBUSD, _lottPrice, 18);
         require(
-            block.timestamp > _startDate && block.timestamp < _finishDate,
-            "TokenSale::locked: TokenSale already finished"
-        );
-        require(
-            _maxCap > 0 && _maxCap >= amoutLott,
-            "TokenSale::locked: TokenSale already finished"
+            (block.timestamp > _startDate && block.timestamp < _finishDate) || _maxCap >= amoutLott,
+            "TokenSale::locked: TokenSale is not active"
         );
         require(
             amoutLott > 0,
@@ -35,6 +28,10 @@ contract TokenSaleLocked is TokenSaleBase {
             "TokenSale::locked: Amount more than token sale LOTT balance"
         );
         _;
+    }
+
+    function calcul(uint a, uint b, uint precision) internal pure returns (uint) {
+        return a*(10**precision)/b;
     }
 
     function balanceOf(address _owner) external view returns (uint256) {
@@ -73,14 +70,14 @@ contract TokenSaleLocked is TokenSaleBase {
     }
 
     function locked(uint256 _amountBUSD) external validateLocked(_amountBUSD) {
-        uint256 amoutLOTT = _amountBUSD.calcul(_lottPrice, 18);
-        BUSD.transferFrom(tx.origin, address(this), _amountBUSD);
-        _locked(tx.origin, amoutLOTT);
+        uint256 amountLOTT = calcul(_amountBUSD, _lottPrice, 18);
+        BUSD.transferFrom(msg.sender, address(this), _amountBUSD);
+        _locked(msg.sender, amountLOTT);
     }
 
     function lockedForOwner(address _to, uint256 _amountBUSD)
         external
-        onlyOwnerOrigin
+        onlyOwner
         validateLocked(_amountBUSD)
     {
         require(
@@ -91,27 +88,25 @@ contract TokenSaleLocked is TokenSaleBase {
             _to != address(0),
             "TokenSale::lockedForOwner: To address is zero."
         );
-        uint256 amoutLOTT = _amountBUSD.calcul(_lottPrice, 18);
+        uint256 amountLOTT = calcul(_amountBUSD, _lottPrice, 18);
 
-        _lockedForOwner(_to, amoutLOTT);
+        _lockedForOwner(_to, amountLOTT);
     }
 
     function getLockedWallets()
         external
         view
-        onlyOwnerOrigin
+        onlyOwner
         returns (address[] memory, uint256[] memory)
     {
-        address[] memory userWallets = new address[](_lockedWallets.length);
         uint256[] memory userBalances = new uint256[](_lockedWallets.length);
         
         for (uint256 i = 0; i < _lockedWallets.length; i++) {
             address item = _lockedWallets[i];
             uint256 balance = lockedBalances[item];
-            userWallets[i] = item;
             userBalances[i] = balance;
         }
 
-        return (userWallets, userBalances);
+        return (_lockedWallets, userBalances);
     }
 }

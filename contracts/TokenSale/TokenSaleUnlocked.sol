@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -76,12 +76,12 @@ contract TokenSaleUnlocked is TokenSaleLocked {
     }
 
     function unlocked(uint256 _amount) external {
-        _unlocked(tx.origin, _amount);
+        _unlocked(msg.sender, _amount);
     }
 
     function unlockedForOwner(address _to, uint256 _amount)
         external
-        onlyOwnerOrigin
+        onlyOwner
     {
         require(
             !_to.isContract(),
@@ -143,21 +143,21 @@ contract TokenSaleUnlocked is TokenSaleLocked {
     }
     
     function percentUnlocked() external view returns(uint8) {
-        _checkUnlocked(tx.origin);
-        return _percentUnlocked(tx.origin);
+        _checkUnlocked(msg.sender);
+        return _percentUnlocked(msg.sender);
     }
     
     function maxPosibilityUnlocked() external view returns(uint256) {
-        _checkUnlocked(tx.origin);
-        return _calculateMaxPosibilityUnlocked(tx.origin);
+        _checkUnlocked(msg.sender);
+        return _calculateMaxPosibilityUnlocked(msg.sender);
     }
     
     function posibilityUnlocked() external view returns(uint256) {
-        _checkUnlocked(tx.origin);
-        if (lockedBalances[tx.origin] > 0) {
-            return _calculateMaxPosibilityUnlocked(tx.origin) - (_lockedBalances[tx.origin] - lockedBalances[tx.origin]);
+        _checkUnlocked(msg.sender);
+        if (lockedBalances[msg.sender] > 0) {
+            return _calculateMaxPosibilityUnlocked(msg.sender) - (_lockedBalances[msg.sender] - lockedBalances[msg.sender]);
         }
         
-        return _calculateMaxPosibilityUnlocked(tx.origin);
+        return _calculateMaxPosibilityUnlocked(msg.sender);
     }
 }

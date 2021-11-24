@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -34,11 +34,6 @@ contract TokenSaleBase is Ownable {
         require(block.timestamp < _date, "TokenSale:: Date.now more than date");
         _;
     }
-    
-    modifier onlyOwnerOrigin() {
-        require(owner() == tx.origin, "Ownable: caller is not the owner");
-        _;
-    }
 
     function maxCap() external view returns (uint256) {
         return _maxCap;
@@ -62,23 +57,19 @@ contract TokenSaleBase is Ownable {
 
     function setUnlockedTable(uint8[] memory _percents, uint8[] memory _months)
         external
-        onlyOwner returns(bool)
+        onlyOwner
     {
-       return _setUnlockedTable(_percents, _months);
+       _setUnlockedTable(_percents, _months);
     }
     
-    function _setUnlockedTable(uint8[] memory _percents, uint8[] memory _months) internal returns(bool) {
-        require(_percents.length == _months.length);
-        require(_percents.length <= 100);
+    function _setUnlockedTable(uint8[] memory _percents, uint8[] memory _months) internal {
+        require(_percents.length == _months.length, "TokenSale::setUnlockedTable: Percents and months must be the same length.");
+        require(_percents.length <= 100, "TokenSale::setUnlockedTable: Percents and months must be max 100 items.");
         _unlockedPercents = new uint8[](_percents.length);
         _unlockedMonths = new uint8[](_percents.length);
         for (uint256 i = 0; i < _percents.length; i++) {
             uint8 percent = _percents[i];
             uint8 month = _months[i];
-            require(
-                month >= 1,
-                "TokenSale::setUnlockedTable: Month: must be more or equel 1"
-            );
             require(
                 percent >= 0,
                 "TokenSale::setUnlockedTable: Percent: must be more or equel 0"
@@ -86,8 +77,6 @@ contract TokenSaleBase is Ownable {
             _unlockedPercents[i] = percent;
             _unlockedMonths[i] = month;
         }
-        
-        return true;
     }
 
     function getUnlockedTableTimeByMonth(uint8 _month) external view returns (uint8) {
@@ -110,56 +99,49 @@ contract TokenSaleBase is Ownable {
         return (_unlockedMonths, _unlockedPercents);
     }
 
-    function setMaxCap(uint256 _capital) external onlyOwner returns (bool) {
-        return _setMaxCap(_capital);
+    function setMaxCap(uint256 _capital) external onlyOwner {
+        _setMaxCap(_capital);
     }
     
-    function _setMaxCap(uint256 _capital) internal returns(bool) {
+    function _setMaxCap(uint256 _capital) internal {
         require(_capital > 0, "TokenSale::setMaxCap: MaxCap must be more 0");
         _maxCap = _capital;
-        return true;
     }
 
     function setStartDate(uint32 _date)
         external
         onlyOwner
         checkTime(_date)
-        returns (bool)
     {
         _startDate = _date;
-        return true;
     }
 
     function setFinishDate(uint32 _date)
         external
         onlyOwner
         checkTime(_date)
-        returns (bool)
     {
         _finishDate = _date;
-        return true;
     }
 
-    function setLottPrice(uint256 _price) external onlyOwner returns (bool) {
-        return _setLottPrice(_price);
+    function setLottPrice(uint256 _price) external onlyOwner {
+        _setLottPrice(_price);
     }
     
-    function _setLottPrice(uint256 _price) internal returns (bool) {
+    function _setLottPrice(uint256 _price) internal {
         require(
             _price > 0,
             "TokenSale::setLottPrice: LottPrice must be more 0"
         );
         _lottPrice = _price;
-        return true;
     }
 
-    function setMinPurchase(uint256 _value) external onlyOwner returns (bool) {
+    function setMinPurchase(uint256 _value) external onlyOwner {
         require(
             _value > 0,
             "TokenSale::setMinPurchase: MinPurchase must be more 0"
         );
         _minPurchase = _value;
-        return true;
     }
 
     function burn(address _to) external onlyOwner {
