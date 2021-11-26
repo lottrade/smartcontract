@@ -131,7 +131,7 @@ contract StakedContract is Ownable {
                 }
             }
 
-            if (appropriateStakes.length > 0) {
+            if (appropriateStakes.length > 0 && appropriateStakes[0].amount > 0) {
                 addressStakes[addressStakesIndex] = appropriateStakes;
                 addressStakesIndex += 1;
             }
@@ -146,8 +146,14 @@ contract StakedContract is Ownable {
 
         StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[msg.sender].index].addressStakes);
 
-        for (uint256 s = 0; s < summary.stakes.length; s += 1){
-           uint256 availableReward = _calculateStakeReward(summary.stakes[s]);
+        for (uint256 s = 0; s < summary.stakes.length; s += 1) {
+            uint256 availableReward = 0;
+            if (summary.stakes[s].unlockTime > block.timestamp) {
+                availableReward = _calculateStakeReward(summary.stakes[s]);
+            } else {
+                availableReward = _calculateStakeRewardForPeriod(summary.stakes[s]);
+            }
+
            summary.stakes[s].claimable = availableReward;
            totalStakeAmount = totalStakeAmount+summary.stakes[s].amount;
        }
@@ -163,8 +169,12 @@ contract StakedContract is Ownable {
         StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[_staker].index].addressStakes);
 
         for (uint256 s = 0; s < summary.stakes.length; s += 1){
-           uint256 availableReward = _calculateStakeReward(summary.stakes[s]);
-           summary.stakes[s].claimable = availableReward;
+            uint256 availableReward = 0;
+            if (summary.stakes[s].unlockTime > block.timestamp) {
+                availableReward = _calculateStakeReward(summary.stakes[s]);
+            } else {
+                availableReward = _calculateStakeRewardForPeriod(summary.stakes[s]);
+            }
            totalStakeAmount = totalStakeAmount+summary.stakes[s].amount;
        }
 
@@ -191,7 +201,7 @@ contract StakedContract is Ownable {
 
                 for (uint256 st = 0; st < stakeholders[s].addressStakes.length; st += 1) {
                     Stake memory currentStake = stakeholders[s].addressStakes[st];
-                    if (currentStake.unlockTime - 1 days < block.timestamp) {
+                    if (currentStake.unlockTime - 1 days < block.timestamp && !currentStake.approve && !currentStake.paidOut) {
                         uint256 availableReward = _calculateStakeRewardForPeriod(currentStake);
                         currentStake.claimable = availableReward;
                         appropriateStakes[stakesIndex] = currentStake;
@@ -332,7 +342,7 @@ contract StakedContract is Ownable {
     function unStakeForOwner(address receiver, uint256 index) external onlyOwner {
         uint256 userIndex = stakes[receiver].index;
         Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
-        require(currentStake.paidOut == false && currentStake.approve == false, "Staking::Unstake: This staking has already been paid");
+        require(currentStake.paidOut == false, "Staking::Unstake: This staking has already been paid");
 
         stakeholders[userIndex].addressStakes[index].paidOut = true;
         _balances[receiver] -= currentStake.amount;
