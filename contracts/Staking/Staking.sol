@@ -1,4 +1,6 @@
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: MIT
+// NIFTSY protocol for StakedContract
+pragma solidity ^0.8.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -13,7 +15,7 @@ contract StakedContract is Ownable {
     event UnStake(address indexed user, uint256 amount, uint256 index, uint256 timestamp);
 
     IERC20 LOTT;
-    uint256 minimumNumberLOTTtoStaking = 0;
+    uint256 public minimumNumberLOTTtoStaking = 0;
     uint256 minimumNumberLOTTtoWithdrawal = 0;
 
     struct StakesData {
@@ -60,8 +62,8 @@ contract StakedContract is Ownable {
 
     constructor(address _address) {
         require(
-            _address.isContract(),
-            "Staking::setLottContractAddress: Address must be contract address"
+           _address.isContract(),
+           "Staking::setLottContractAddress: Address must be contract address"
         );
         LOTT = IERC20(_address);
     }
@@ -71,7 +73,7 @@ contract StakedContract is Ownable {
     }
 
     function stake(uint256 _amount, uint64 _period) external checkPeriod(_period) {
-        require(_amount >= minimumNumberLOTTtoStaking, "Staking::stake: Unavailable number of LOTTS for stake");
+        require(_amount > 0 && _amount >= minimumNumberLOTTtoStaking, "Staking::stake: Unavailable number of LOTTS for stake");
         _gettingSteakingToken(_amount);
         _stake(_amount, _period);
     }
@@ -108,31 +110,63 @@ contract StakedContract is Ownable {
         minimumNumberLOTTtoWithdrawal = _amount;
     }
 
-    function calculateStakeReward() external onlyOwner {
-        for (uint256 s = 0; s < stakeholders.length; s += 1) {
-            address staker = stakeholders[s].user;
-            Stake[] memory _stakes = stakeholders[s].addressStakes;
-            for (uint256 st = 0; st < _stakes.length; st += 1) {
-                Stake memory _currentStake = _stakes[st];
+    function calculateStakeReward() external view onlyOwner returns (Stake[][] memory) {
+        Stake[][] memory addressStakes = new Stake[][](stakeholders.length);
 
-                if (block.timestamp < _currentStake.unlockTime) {
-                    uint256 availableReward = _calculateStakeReward(_currentStake);
-                    stakeholders[s].addressStakes[st].claimable += availableReward;  
-                } else if (_currentStake.approve) {
-                    _withdrawStake(staker, _currentStake.amount, st);
+        uint256 addressStakesIndex = 0;
+        for (uint256 s = 0; s < stakeholders.length; s += 1) {
+            Stake[] memory _stakes = stakeholders[s].addressStakes;
+            Stake[] memory appropriateStakes = new Stake[](_stakes.length);
+            uint256 appStakeIndex = 0;
+            for (uint256 st = 0; st < _stakes.length; st += 1) {
+                if (_stakes.length > 0) {
+                    Stake memory _currentStake = _stakes[st];
+
+                    if (block.timestamp > _currentStake.unlockTime && !_currentStake.paidOut && _currentStake.approve) {
+                        uint256 availableReward = _calculateStakeRewardForPeriod(_currentStake);
+                        _currentStake.claimable = availableReward;
+                        appropriateStakes[appStakeIndex] = _currentStake;
+                        appStakeIndex += 1;
+                    }
                 }
             }
+
+            if (appropriateStakes.length > 0) {
+                addressStakes[addressStakesIndex] = appropriateStakes;
+                addressStakesIndex += 1;
+            }
         }
+
+        return addressStakes;
     }
 
-    function hasStake(address _staker) public view returns(StakingSummary memory) {
+    function ownStake() external view returns(StakingSummary memory){
+        require(stakes[msg.sender].isExist, "Staking::ownStake: Stake not found");
+        uint256 totalStakeAmount;
+
+        StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[msg.sender].index].addressStakes);
+
+        for (uint256 s = 0; s < summary.stakes.length; s += 1){
+           uint256 availableReward = _calculateStakeReward(summary.stakes[s]);
+           summary.stakes[s].claimable = availableReward;
+           totalStakeAmount = totalStakeAmount+summary.stakes[s].amount;
+       }
+
+        summary.totalAmount = totalStakeAmount;
+        return summary;
+    }
+
+    function hasStake(address _staker) external view onlyOwner returns(StakingSummary memory){
+        require(stakes[_staker].isExist, "Staking::ownStake: Stake not found");
         uint256 totalStakeAmount;
 
         StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[_staker].index].addressStakes);
 
-        for (uint256 s = 0; s < summary.stakes.length; s += 1) {
-           totalStakeAmount = totalStakeAmount + summary.stakes[s].amount;
-        }
+        for (uint256 s = 0; s < summary.stakes.length; s += 1){
+           uint256 availableReward = _calculateStakeReward(summary.stakes[s]);
+           summary.stakes[s].claimable = availableReward;
+           totalStakeAmount = totalStakeAmount+summary.stakes[s].amount;
+       }
 
         summary.totalAmount = totalStakeAmount;
         return summary;
@@ -158,6 +192,8 @@ contract StakedContract is Ownable {
                 for (uint256 st = 0; st < stakeholders[s].addressStakes.length; st += 1) {
                     Stake memory currentStake = stakeholders[s].addressStakes[st];
                     if (currentStake.unlockTime - 1 days < block.timestamp) {
+                        uint256 availableReward = _calculateStakeRewardForPeriod(currentStake);
+                        currentStake.claimable = availableReward;
                         appropriateStakes[stakesIndex] = currentStake;
                         stakesIndex += 1;
                     }
@@ -241,29 +277,45 @@ contract StakedContract is Ownable {
         return _precent;
     }
 
+    function _calculateRewardPrecentForPeriod(uint64 _period) internal pure returns(uint256) {
+        uint256 _precent = 0;
+        if (_period == 30) _precent = 15000000000000000000;
+        else if (_period == 90) _precent = 30000000000000000000;
+        else if (_period == 180) _precent = 45000000000000000000;
+
+        return _precent;
+    }
+
     function _percentageFromNumber(uint256 _number, uint256 _precent) internal pure returns(uint256) {
         return _number * _precent / 100;
     }
 
-    function _calculateStakeReward(Stake memory _currentStake) internal pure returns(uint256) {
+    function _calculateStakeReward(Stake memory _currentStake) internal view returns(uint256) {
         uint256 _precent = _calculateRewardPrecent(_currentStake.period);
+        uint256 periodsInOneYear = 360 / _currentStake.period;
+        uint256 diffDays = (block.timestamp - _currentStake.timestamp) / 1 days;
+        return (diffDays * (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear)) / (10 ** 18);
+    }
+
+    function _calculateStakeRewardForPeriod(Stake memory _currentStake) internal pure returns(uint256) {
+        uint256 _precent = _calculateRewardPrecentForPeriod(_currentStake.period);
         uint256 periodsInOneYear = 360 / _currentStake.period;
         return (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear) / (10 ** 18);
     }
 
-    function _withdrawStake(address receiver, uint256 amount, uint256 index) internal {
+    function withdrawalStake(address receiver, uint256 amount, uint256 index) external onlyOwner {
         uint256 userIndex = stakes[msg.sender].index;
         Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
 
-        uint256 reward = _calculateStakeReward(currentStake);
+        uint256 reward = _calculateStakeRewardForPeriod(currentStake);
+        require(reward >= minimumNumberLOTTtoWithdrawal, "Staking::withdrawStake: reward less than minimumNumberLOTTtoWithdrawal");
 
-        if (reward > minimumNumberLOTTtoWithdrawal) {
-            stakeholders[userIndex].addressStakes[index].paidOut = true;
-            _balances[receiver] -= amount;
 
-            LOTT.transfer(receiver, amount + reward);
-            emit WithdrawaStake(receiver, amount, reward, index, block.timestamp);
-        }
+        stakeholders[userIndex].addressStakes[index].paidOut = true;
+        _balances[receiver] -= amount;
+
+        LOTT.transfer(receiver, amount + reward);
+        emit WithdrawaStake(receiver, amount, reward, index, block.timestamp);
     }
 
     function unStake(uint256 index) external {
@@ -275,6 +327,17 @@ contract StakedContract is Ownable {
         _balances[msg.sender] -= currentStake.amount;
         LOTT.transfer(msg.sender, currentStake.amount);
         emit UnStake(msg.sender, currentStake.amount, index, block.timestamp);
+    }
+
+    function unStakeForOwner(address receiver, uint256 index) external onlyOwner {
+        uint256 userIndex = stakes[receiver].index;
+        Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
+        require(currentStake.paidOut == false && currentStake.approve == false, "Staking::Unstake: This staking has already been paid");
+
+        stakeholders[userIndex].addressStakes[index].paidOut = true;
+        _balances[receiver] -= currentStake.amount;
+        LOTT.transfer(receiver, currentStake.amount);
+        emit UnStake(receiver, currentStake.amount, index, block.timestamp);
     }
 
     function _approveStake(address _staker, uint256 _stakeIndex) internal {
