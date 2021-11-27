@@ -41,6 +41,8 @@ contract StakedContract is Ownable {
     struct Stake {
         address user;
         uint256 amount;
+        uint256 dailyPercentage;
+        uint256 periodPercentage;
         uint256 timestamp;
         uint64 period;
         uint256 unlockTime;
@@ -268,8 +270,7 @@ contract StakedContract is Ownable {
         uint256 lastIndexNumber = stakeholders[index].addressStakes.length;
 
         uint256 unlockTime = _calculateUnlockTime(_period);
-        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, timestamp, _period, unlockTime, 0, false, false, lastIndexNumber));
-
+        stakeholders[index].addressStakes.push(Stake(msg.sender, _amount, _calculateRewardPrecent(_period), _calculateRewardPrecentForPeriod(_period), timestamp, _period, unlockTime, 0, false, false, lastIndexNumber));
 
         emit Staked(msg.sender, _amount, index, timestamp);
     }
@@ -306,14 +307,14 @@ contract StakedContract is Ownable {
     }
 
     function _calculateStakeReward(Stake memory _currentStake) internal view returns(uint256) {
-        uint256 _precent = _calculateRewardPrecent(_currentStake.period);
+        uint256 _precent = _currentStake.dailyPercentage;
         uint256 periodsInOneYear = 360 / _currentStake.period;
         uint256 diffDays = (block.timestamp - _currentStake.timestamp) / 1 days;
         return (diffDays * (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear)) / (10 ** 18);
     }
 
     function _calculateStakeRewardForPeriod(Stake memory _currentStake) internal pure returns(uint256) {
-        uint256 _precent = _calculateRewardPrecentForPeriod(_currentStake.period);
+        uint256 _precent = _currentStake.periodPercentage;
         uint256 periodsInOneYear = 360 / _currentStake.period;
         return (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear) / (10 ** 18);
     }
