@@ -33,6 +33,11 @@ contract StakedContract is Ownable {
         Stake[] stakes;
     }
 
+    struct StakeholdersSummary{
+        address[] stakers;
+        Stake[][] stakes;
+    }
+
     struct Stake {
         address user;
         uint256 amount;
@@ -186,7 +191,7 @@ contract StakedContract is Ownable {
         _approveStake(staker, stakeIndex);
     }
 
-    function getStakeholders() external view returns(address[] memory, Stake[][] memory) {
+    function getStakeholders() external view onlyOwner returns(StakeholdersSummary memory) {
         address[] memory stakers = new address[](stakeholders.length);
         Stake[][] memory addressStakes = new Stake[][](stakeholders.length);
         uint256 userIndex = 0;
@@ -216,8 +221,8 @@ contract StakedContract is Ownable {
                 }
             }
         }
-
-        return (stakers, addressStakes);
+        StakeholdersSummary memory summary =  StakeholdersSummary(stakers, addressStakes);
+        return summary;
     }
 
     function _gettingSteakingToken(uint256 _amount) internal {
