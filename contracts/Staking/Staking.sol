@@ -286,9 +286,9 @@ contract StakedContract is Ownable {
 
     function _calculateRewardPrecent(uint64 _period) internal pure returns(uint256) {
         uint256 _precent = 0;
-        if (_period == 30) _precent = 500000000000000000; // ABY / period = 15 / 40 = percentage of remuneration per day
-        else if (_period == 90) _precent = 333333333333333300;
-        else if (_period == 180) _precent = 250000000000000000;
+        if (_period == 30) _precent = 41666666666666664;
+        else if (_period == 90) _precent = 83333333333333330;
+        else if (_period == 180) _precent = 125000000000000000;
 
         return _precent;
     }
@@ -308,9 +308,8 @@ contract StakedContract is Ownable {
 
     function _calculateStakeReward(Stake memory _currentStake) internal view returns(uint256) {
         uint256 _precent = _currentStake.dailyPercentage;
-        uint256 periodsInOneYear = 360 / _currentStake.period;
         uint256 diffDays = (block.timestamp - _currentStake.timestamp) / 1 days;
-        return (diffDays * (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear)) / (10 ** 18);
+        return (diffDays * (_percentageFromNumber(_currentStake.amount, _precent))) / (10 ** 18);
     }
 
     function _calculateStakeRewardForPeriod(Stake memory _currentStake) internal pure returns(uint256) {
