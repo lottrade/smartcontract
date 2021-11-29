@@ -318,11 +318,13 @@ contract StakedContract is Ownable {
         return (_percentageFromNumber(_currentStake.amount, _precent) / periodsInOneYear) / (10 ** 18);
     }
 
-    function withdrawalStake(address receiver, uint256 amount, uint256 index) external onlyOwner {
-        uint256 userIndex = stakes[msg.sender].index;
+    function withdrawalStake(address receiver, uint256 index) external onlyOwner {
+        uint256 userIndex = stakes[receiver].index;
         Stake memory currentStake = stakeholders[userIndex].addressStakes[index];
+        uint256 amount = currentStake.amount;
 
         uint256 reward = _calculateStakeRewardForPeriod(currentStake);
+        require(currentStake.paidOut == false && currentStake.approve == true, "Staking::Unstake: This staking has already been paid");
         require(reward >= minimumNumberLOTTtoWithdrawal, "Staking::withdrawStake: reward less than minimumNumberLOTTtoWithdrawal");
 
 
