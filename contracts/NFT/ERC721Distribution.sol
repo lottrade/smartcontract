@@ -6,12 +6,11 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
-//v0.0.3
 contract ERC721Distribution is ERC721URIStorage, Ownable {
-    string startNftIpfsHash = "QmaSYZg9up7mzNuCk4iUCSPSqWqn3BWuXbBKfHiytN4Mue";
-    string proNftIpfsHash = "QmYw2pxEbKHVu8yQhu3e6HFCdgudzCVmnk3BL8DXfKN8qV";
-    string expertNftIpfsHash = "QmYtRxDCkZBwAmKmG8YiVpXWXfgfe9e9JJV4ioLeYwBmzc";
-    string partnerNftIpfsHash = "QmVBSLXVmMPfxVw4KDzxZP1dr3NxB7hmNEVTUf2zbWEbD3";
+    string startNftIpfsHash = "QmWTnzkr4wysmwxpt6wVmzj9F6N5kfV6bcDA3oQLqcD61F";
+    string proNftIpfsHash = "QmbppBJVsFFgvXv9GkTaHoGrBR1yofnVdFUxWu9sykAJW1";
+    string expertNftIpfsHash = "QmSgFFQBZb1DvynB6cJFsP54FAhMy6g2ES1UFcGiibWyjj";
+    string partnerNftIpfsHash = "QmZmg712oJUF5qqEDdgvF9TM5VgBtQ353vCqUkzytqdeTr";
 
     mapping(address => bool) public trustedMinter;
 
@@ -21,7 +20,7 @@ contract ERC721Distribution is ERC721URIStorage, Ownable {
         trustedMinter[msg.sender] = true;
     }
 
-     modifier checkTrustedMinter() {
+    modifier checkTrustedMinter() {
         require(trustedMinter[msg.sender], "Trusted address only");
         _;
     }
@@ -66,22 +65,22 @@ contract ERC721Distribution is ERC721URIStorage, Ownable {
     }
 
     function _getUrlForMintNft(uint256 _tokenId) internal view returns(string memory) {
-        require(_tokenId >= 0 && _tokenId <= 6599, "ERC721Distribution: unavailable itemId");
+        require(_tokenId >= 1 && _tokenId <= 6600, "ERC721Distribution: unavailable itemId");
         string memory nftIpfsHash;
 
-        if (_tokenId >= 0 && _tokenId <= 4499) nftIpfsHash = startNftIpfsHash;
-        else if (_tokenId > 4499 && _tokenId <= 5999) nftIpfsHash = proNftIpfsHash;
-        else if (_tokenId > 5999 && _tokenId <= 6499) nftIpfsHash = expertNftIpfsHash;
-        else if (_tokenId > 6499 && _tokenId <= 6599) nftIpfsHash = partnerNftIpfsHash;
+        if (_tokenId >= 1 && _tokenId <= 4500) nftIpfsHash = startNftIpfsHash;
+        else if (_tokenId > 4500 && _tokenId <= 6000) nftIpfsHash = proNftIpfsHash;
+        else if (_tokenId > 6000 && _tokenId <= 6500) nftIpfsHash = expertNftIpfsHash;
+        else if (_tokenId > 6500 && _tokenId <= 6600) nftIpfsHash = partnerNftIpfsHash;
 
         return nftIpfsHash;
     }
 
-    function _baseURI() internal view override returns (string memory) {
+    function _baseURI() internal pure override returns (string memory) {
         return "https://ipfs.io/ipfs/";
     }
 
-    function baseURI() external view  returns (string memory) {
+    function baseURI() external pure returns (string memory) {
         return _baseURI();
     }
 }
