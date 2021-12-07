@@ -44,7 +44,7 @@ contract TokenSaleUnlocked is TokenSaleLocked {
             UnlockedTable(_unlockedPercents[checkMinMonthIndex], checkMinMonth);
     }
 
-    constructor(address _busd, address _lott, uint256 _maxCap, uint256 _lottPrice, uint8[] memory _percents, uint8[] memory _months) {
+    constructor(address _busd, address _lott, uint256 _maxCap, uint256 _lottPrice, uint256[] memory _percents, uint8[] memory _months) {
         LOTT = IERC20(_lott);
         BUSD = IERC20(_busd);
         _setMaxCap(_maxCap);
@@ -95,24 +95,24 @@ contract TokenSaleUnlocked is TokenSaleLocked {
     }
     
     function _calculateMaxPosibilityUnlocked(address _address) internal view returns(uint256) {
-        uint32 percent = _percentUnlocked(_address);
+        uint256 percent = _percentUnlocked(_address);
         
-        return  (percent * _lockedBalances[_address]) / 100;
+        return  (percent * _lockedBalances[_address]) / 100000000000000000000;
     }
 
-    function _percentUnlocked(address _address) private view returns (uint8) {
-        uint8 percent;
-        uint8 maxPercent = 100;
+    function _percentUnlocked(address _address) private view returns (uint256) {
+        uint256 percent;
+        uint256 maxPercent = 100000000000000000000;
         uint256 timeNow = block.timestamp;
         uint256 firstTimeLocked = _lockedBalancesFirstTime[_address];
 
-        uint8 calcPercent = 0;
+        uint256 calcPercent = 0;
         bool checkLastMonth = false;
-        uint8 lastPercent;
+        uint256 lastPercent;
         uint8 lastMonth;
         for (uint8 i = 0; i < _unlockedMonths.length; i++) {
             uint8 unLockedMonth = _unlockedMonths[i];
-            uint8 unLockedPercent = _unlockedPercents[i];
+            uint256 unLockedPercent = _unlockedPercents[i];
             if (
                 unLockedPercent > 0 &&
                 timeNow >
@@ -128,7 +128,7 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         }
 
         if (checkLastMonth && calcPercent < maxPercent) {
-            uint8 calcMissingMonth = (maxPercent - calcPercent) / lastPercent;
+            uint256 calcMissingMonth = (maxPercent - calcPercent) / lastPercent;
             for (uint8 i = 1; i <= calcMissingMonth; i++) {
                 uint8 nextMonth = lastMonth + i;
                 if (timeNow > firstTimeLocked + (nextMonth * _daysInMonth)) {
@@ -142,7 +142,7 @@ contract TokenSaleUnlocked is TokenSaleLocked {
         return percent;
     }
     
-    function percentUnlocked() external view returns(uint8) {
+    function percentUnlocked() external view returns(uint256) {
         _checkUnlocked(msg.sender);
         return _percentUnlocked(msg.sender);
     }

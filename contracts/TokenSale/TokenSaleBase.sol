@@ -18,7 +18,7 @@ contract TokenSaleBase is Ownable {
     mapping(address => uint256) internal _lockedBalances;
     mapping(address => uint256) internal _lockedBalancesFirstTime;
     address[] internal _lockedWallets;
-    uint8[] internal _unlockedPercents;
+    uint256[] internal _unlockedPercents;
     uint8[] internal _unlockedMonths;
     uint256 internal constant _daysInMonth = 30 days;
 
@@ -26,7 +26,7 @@ contract TokenSaleBase is Ownable {
     event UnLocked(address indexed unlockedAddress, uint256 amount);
     
     struct UnlockedTable {
-        uint8 percent;
+        uint256 percent;
         uint8 month;
     }
 
@@ -55,20 +55,20 @@ contract TokenSaleBase is Ownable {
         return _minPurchase;
     }
 
-    function setUnlockedTable(uint8[] memory _percents, uint8[] memory _months)
+    function setUnlockedTable(uint256[] memory _percents, uint8[] memory _months)
         external
         onlyOwner
     {
        _setUnlockedTable(_percents, _months);
     }
     
-    function _setUnlockedTable(uint8[] memory _percents, uint8[] memory _months) internal {
+    function _setUnlockedTable(uint256[] memory _percents, uint8[] memory _months) internal {
         require(_percents.length == _months.length, "TokenSale::setUnlockedTable: Percents and months must be the same length.");
         require(_percents.length <= 100, "TokenSale::setUnlockedTable: Percents and months must be max 100 items.");
-        _unlockedPercents = new uint8[](_percents.length);
+        _unlockedPercents = new uint256[](_percents.length);
         _unlockedMonths = new uint8[](_percents.length);
         for (uint256 i = 0; i < _percents.length; i++) {
-            uint8 percent = _percents[i];
+            uint256 percent = _percents[i];
             uint8 month = _months[i];
             require(
                 percent >= 0,
@@ -79,7 +79,7 @@ contract TokenSaleBase is Ownable {
         }
     }
 
-    function getUnlockedTableTimeByMonth(uint8 _month) external view returns (uint8) {
+    function getUnlockedTableTimeByMonth(uint8 _month) external view returns (uint256) {
         uint8 index;
         for (uint8 i = 0; i < _unlockedMonths.length; i++) {
             if (_month == _unlockedMonths[i]) index = i;
@@ -94,7 +94,7 @@ contract TokenSaleBase is Ownable {
     function getUnlockedTableTime()
         external
         view
-        returns (uint8[] memory months, uint8[] memory pecents)
+        returns (uint8[] memory months, uint256[] memory pecents)
     {
         return (_unlockedMonths, _unlockedPercents);
     }
