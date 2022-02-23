@@ -78,16 +78,18 @@ contract StakedContract is Ownable {
     }
 
     modifier checkAvailableStaking(uint64 _period) {
-        StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[msg.sender].index].addressStakes);
+        StakesData memory stakesData = stakes[msg.sender];
 
-        if (summary.stakes.length > 0) {
-            for (uint256 s = 0; s < summary.stakes.length; s += 1) {
-                if (summary.stakes[s].period == _period) {
-                    require(summary.stakes[s].paidOut, "Staking:: You have active staking for this period");
+        if (stakesData.isExist) {
+            StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[msg.sender].index].addressStakes);
+            if (summary.stakes.length > 0) {
+                for (uint256 s = 0; s < summary.stakes.length; s += 1) {
+                    if (summary.stakes[s].period == _period) {
+                        require(summary.stakes[s].paidOut, "Staking:: You have active staking for this period");
+                    }
                 }
             }
         }
-        
         _;
     }
 
@@ -263,7 +265,7 @@ contract StakedContract is Ownable {
                 address(this),
                 _amount
             ) == true,
-            'Could not transfer tokens from your address to this contract'
+            "Could not transfer tokens from your address to this contract"
         );
 
         _balances[msg.sender] += _amount;
