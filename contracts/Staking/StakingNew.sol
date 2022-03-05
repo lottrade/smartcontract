@@ -77,17 +77,26 @@ contract StakedContract is Ownable {
         _;
     }
 
-    modifier checkAvailableStaking(uint64 _period) {
+    modifier checkAvailableStaking(uint256 _amount, uint64 _period) {
         StakesData memory stakesData = stakes[msg.sender];
 
         if (stakesData.isExist) {
             StakingSummary memory summary = StakingSummary(0, stakeholders[stakes[msg.sender].index].addressStakes);
             if (summary.stakes.length > 0) {
+                uint256 amountStakingByPeriod = 0;
+                uint256 maxDeposit = 0;
                 for (uint256 s = 0; s < summary.stakes.length; s += 1) {
-                    if (summary.stakes[s].period == _period) {
-                        require(summary.stakes[s].paidOut, "Staking:: You have active staking for this period");
+                    if (summary.stakes[s].period == _period && summary.stakes[s].paidOut == false) {
+                        amountStakingByPeriod += summary.stakes[s].amount;
                     }
                 }
+                if (_period == 7) {
+                    maxDeposit = 200 * (10**18);
+                }
+                if (_period == 30 || _period == 90 || _period == 180) {
+                    maxDeposit = 25000 * (10**18);
+                }
+                require(_amount + amountStakingByPeriod <= maxDeposit, "Staking:: More than the maximum deposit for this period.");
             }
         }
         _;
@@ -105,7 +114,7 @@ contract StakedContract is Ownable {
         return _balances[msg.sender];
     }
 
-    function stake(uint256 _amount, uint64 _period) external checkPeriod(_period) checkMaxDepositByPeriod(_amount, _period) checkAvailableStaking(_period) {
+    function stake(uint256 _amount, uint64 _period) external checkPeriod(_period) checkMaxDepositByPeriod(_amount, _period) checkAvailableStaking(_amount, _period) {
         require(_amount > 0 && _amount >= minimumNumberLOTTtoStaking, "Staking::stake: Unavailable number of LOTTS for stake");
         _gettingSteakingToken(_amount);
         _stake(_amount, _period);
